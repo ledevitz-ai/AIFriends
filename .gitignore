@@ -1,5 +1,10 @@
+# Секретные ключи
 .env
+
+# Файлы Python
 __pycache__/
 *.pyc
+
+# Временные файлы
 .DS_Store
-venv/
+*.log
