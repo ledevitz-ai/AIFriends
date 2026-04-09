@@ -407,163 +407,208 @@ async def root():
         </div>
         
         <script>
-            let friends = [];
-            let currentFriendId = null;
-            let isLoading = false;
-            let chatHistories = {};
-            
-            // Навигация
-            function showFriendsScreen() {
-                document.getElementById('friendsScreen').classList.remove('hide');
-                document.getElementById('chatScreen').classList.remove('active');
-                document.getElementById('chatScreen').style.transform = 'translateX(100%)';
+    let friends = [];
+    let currentFriendId = null;
+    let isLoading = false;
+    
+    // ========== ФУНКЦИИ ДЛЯ РАБОТЫ С ХРАНИЛИЩЕМ ==========
+    
+    // Сохранить все чаты в localStorage
+    function saveAllChatsToStorage(chats) {
+        try {
+            localStorage.setItem('ai_friends_chats', JSON.stringify(chats));
+            console.log('✅ Чаты сохранены в localStorage');
+        } catch(e) {
+            console.error('Ошибка сохранения:', e);
+        }
+    }
+    
+    // Загрузить все чаты из localStorage
+    function loadAllChatsFromStorage() {
+        try {
+            const saved = localStorage.getItem('ai_friends_chats');
+            if (saved) {
+                return JSON.parse(saved);
             }
-            
-            function showChatScreen() {
-                document.getElementById('friendsScreen').classList.add('hide');
-                document.getElementById('chatScreen').classList.add('active');
-                document.getElementById('chatScreen').style.transform = 'translateX(0)';
-            }
-            
-            async function loadFriends() {
-                const res = await fetch('/api/friends');
-                const data = await res.json();
-                friends = data.friends;
-                const container = document.getElementById('friendsList');
-                container.innerHTML = '';
-                friends.forEach(f => {
-                    const div = document.createElement('div');
-                    div.className = 'friend-item';
-                    div.onclick = () => selectFriend(f.id);
-                    div.innerHTML = `
-                        <div class="friend-avatar" style="background: ${f.color}">${f.name[0]}</div>
-                        <div class="friend-info">
-                            <div class="friend-name">${escapeHtml(f.name)}</div>
-                            <div class="friend-personality">${escapeHtml(f.personality)}</div>
-                        </div>
-                    `;
-                    container.appendChild(div);
-                });
-            }
-            
-            function selectFriend(id) {
-                if (currentFriendId && currentFriendId !== id) {
-                    saveChat();
-                }
-                currentFriendId = id;
-                const friend = friends.find(f => f.id === id);
-                
-                // Обновляем шапку чата
-                document.getElementById('chatName').innerText = friend.name;
-                const avatar = document.getElementById('chatAvatar');
-                avatar.innerText = friend.name[0];
-                avatar.style.background = friend.color;
-                
-                // Активируем поле ввода
-                document.getElementById('messageInput').disabled = false;
-                document.getElementById('sendButton').disabled = false;
-                
-                // Загружаем историю
-                loadChat();
-                
-                // Показываем экран чата
-                showChatScreen();
-                
-                // Фокус на поле ввода
-                setTimeout(() => {
-                    document.getElementById('messageInput').focus();
-                }, 300);
-            }
-            
-            function saveChat() {
-                if (!currentFriendId) return;
-                const container = document.getElementById('messages');
-                const msgs = [];
-                container.querySelectorAll('.message').forEach(el => {
-                    msgs.push({
-                        role: el.classList.contains('user') ? 'user' : 'friend',
-                        text: el.querySelector('.bubble').innerText
-                    });
-                });
-                if (msgs.length) chatHistories[currentFriendId] = msgs;
-            }
-            
-            function loadChat() {
-                const container = document.getElementById('messages');
-                const history = chatHistories[currentFriendId];
-                if (history && history.length) {
-                    container.innerHTML = '';
-                    history.forEach(msg => {
-                        const div = document.createElement('div');
-                        div.className = `message ${msg.role}`;
-                        div.innerHTML = `<div class="bubble">${msg.text}</div>`;
-                        container.appendChild(div);
-                    });
-                } else {
-                    container.innerHTML = '<div style="text-align: center; padding: 40px; color: #667781;">💬<br>Напишите что-нибудь</div>';
-                }
-                container.scrollTop = container.scrollHeight;
-            }
-            
-            function addMessage(role, text, friendId = null) {
-                const container = document.getElementById('messages');
-                const empty = container.querySelector('div[style*="text-align: center"]');
-                if (empty) empty.remove();
-                
+        } catch(e) {
+            console.error('Ошибка загрузки:', e);
+        }
+        return {};
+    }
+    
+    // Сохранить историю одного чата
+    function saveChatToStorage(friendId, messages) {
+        const allChats = loadAllChatsFromStorage();
+        allChats[friendId] = messages;
+        saveAllChatsToStorage(allChats);
+    }
+    
+    // Загрузить историю одного чата
+    function loadChatFromStorage(friendId) {
+        const allChats = loadAllChatsFromStorage();
+        return allChats[friendId] || [];
+    }
+    
+    // Очистить всё (если понадобится)
+    function clearAllStorage() {
+        localStorage.removeItem('ai_friends_chats');
+        console.log('🗑️ Все чаты удалены');
+    }
+    
+    // ========== ОСТАЛЬНОЙ КОД БЕЗ ИЗМЕНЕНИЙ ==========
+    
+    async function loadFriends() {
+        const res = await fetch('/api/friends');
+        const data = await res.json();
+        friends = data.friends;
+        const container = document.getElementById('friendsList');
+        container.innerHTML = '';
+        friends.forEach(f => {
+            const div = document.createElement('div');
+            div.className = 'friend-item';
+            div.onclick = () => selectFriend(f.id);
+            div.innerHTML = `
+                <div class="friend-avatar" style="background: ${f.color}">${f.name[0]}</div>
+                <div class="friend-info">
+                    <div class="friend-name">${escapeHtml(f.name)}</div>
+                    <div class="friend-personality">${escapeHtml(f.personality)}</div>
+                </div>
+            `;
+            container.appendChild(div);
+        });
+    }
+    
+    function selectFriend(id) {
+        if (currentFriendId && currentFriendId !== id) {
+            saveCurrentChat();
+        }
+        currentFriendId = id;
+        const friend = friends.find(f => f.id === id);
+        
+        document.getElementById('chatHeader').style.display = 'flex';
+        document.getElementById('chatName').innerText = friend.name;
+        const avatar = document.getElementById('chatAvatar');
+        avatar.innerText = friend.name[0];
+        avatar.style.background = friend.color;
+        
+        document.getElementById('messageInput').disabled = false;
+        document.getElementById('sendButton').disabled = false;
+        
+        // Загружаем сохранённую историю
+        loadChat();
+        
+        showChatScreen();
+        setTimeout(() => {
+            document.getElementById('messageInput').focus();
+        }, 300);
+    }
+    
+    function saveCurrentChat() {
+        if (!currentFriendId) return;
+        const container = document.getElementById('messages');
+        const msgs = [];
+        container.querySelectorAll('.message').forEach(el => {
+            msgs.push({
+                role: el.classList.contains('user') ? 'user' : 'friend',
+                text: el.querySelector('.bubble').innerText
+            });
+        });
+        if (msgs.length) {
+            saveChatToStorage(currentFriendId, msgs);
+        }
+    }
+    
+    function loadChat() {
+        const container = document.getElementById('messages');
+        const savedMessages = loadChatFromStorage(currentFriendId);
+        
+        if (savedMessages && savedMessages.length > 0) {
+            container.innerHTML = '';
+            savedMessages.forEach(msg => {
                 const div = document.createElement('div');
-                div.className = `message ${role}`;
-                if (role === 'friend' && friendId) {
-                    const friend = friends.find(f => f.id === friendId);
-                    div.innerHTML = `<div class="bubble"><div style="font-size:11px;color:#667781">${friend.name}</div>${escapeHtml(text)}</div>`;
-                } else {
-                    div.innerHTML = `<div class="bubble">${escapeHtml(text)}</div>`;
-                }
+                div.className = `message ${msg.role}`;
+                div.innerHTML = `<div class="bubble">${escapeHtml(msg.text)}</div>`;
                 container.appendChild(div);
-                container.scrollTop = container.scrollHeight;
-            }
-            
-            function escapeHtml(text) {
-                const div = document.createElement('div');
-                div.textContent = text;
-                return div.innerHTML;
-            }
-            
-            async function sendMessage() {
-                const input = document.getElementById('messageInput');
-                const msg = input.value.trim();
-                if (!msg || !currentFriendId || isLoading) return;
-                
-                addMessage('user', msg);
-                input.value = '';
-                isLoading = true;
-                document.getElementById('sendButton').disabled = true;
-                document.getElementById('typing').style.display = 'flex';
-                
-                try {
-                    const res = await fetch('/api/chat', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({message: msg, friend_id: currentFriendId})
-                    });
-                    const data = await res.json();
-                    addMessage('friend', data.response, data.friend_id);
-                    saveChat();
-                } catch(e) {
-                    console.error(e);
-                    addMessage('friend', 'Ошибка! Попробуй еще раз', currentFriendId);
-                }
-                isLoading = false;
-                document.getElementById('sendButton').disabled = false;
-                document.getElementById('typing').style.display = 'none';
-                input.focus();
-            }
-            
-            document.getElementById('sendButton').onclick = sendMessage;
-            document.getElementById('messageInput').onkeypress = (e) => e.key === 'Enter' && sendMessage();
-            document.getElementById('backButton').onclick = showFriendsScreen;
-            
-            loadFriends();
-        </script>
+            });
+        } else {
+            container.innerHTML = '<div style="text-align: center; padding: 40px; color: #667781;">💬<br>Напишите что-нибудь</div>';
+        }
+        container.scrollTop = container.scrollHeight;
+    }
+    
+    function addMessage(role, text, friendId = null) {
+        const container = document.getElementById('messages');
+        const empty = container.querySelector('div[style*="text-align: center"]');
+        if (empty) empty.remove();
+        
+        const div = document.createElement('div');
+        div.className = `message ${role}`;
+        if (role === 'friend' && friendId) {
+            const friend = friends.find(f => f.id === friendId);
+            div.innerHTML = `<div class="bubble"><div style="font-size:11px;color:#667781">${friend.name}</div>${escapeHtml(text)}</div>`;
+        } else {
+            div.innerHTML = `<div class="bubble">${escapeHtml(text)}</div>`;
+        }
+        container.appendChild(div);
+        container.scrollTop = container.scrollHeight;
+        
+        // Сохраняем после каждого сообщения
+        saveCurrentChat();
+    }
+    
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+    async function sendMessage() {
+        const input = document.getElementById('messageInput');
+        const msg = input.value.trim();
+        if (!msg || !currentFriendId || isLoading) return;
+        
+        addMessage('user', msg);
+        input.value = '';
+        isLoading = true;
+        document.getElementById('sendButton').disabled = true;
+        document.getElementById('typing').style.display = 'flex';
+        
+        try {
+            const res = await fetch('/api/chat', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({message: msg, friend_id: currentFriendId})
+            });
+            const data = await res.json();
+            addMessage('friend', data.response, data.friend_id);
+        } catch(e) {
+            console.error(e);
+            addMessage('friend', 'Ошибка! Попробуй еще раз', currentFriendId);
+        }
+        isLoading = false;
+        document.getElementById('sendButton').disabled = false;
+        document.getElementById('typing').style.display = 'none';
+        input.focus();
+    }
+    
+    function showFriendsScreen() {
+        document.getElementById('friendsScreen').classList.remove('hide');
+        document.getElementById('chatScreen').classList.remove('active');
+        document.getElementById('chatScreen').style.transform = 'translateX(100%)';
+    }
+    
+    function showChatScreen() {
+        document.getElementById('friendsScreen').classList.add('hide');
+        document.getElementById('chatScreen').classList.add('active');
+        document.getElementById('chatScreen').style.transform = 'translateX(0)';
+    }
+    
+    document.getElementById('sendButton').onclick = sendMessage;
+    document.getElementById('messageInput').onkeypress = (e) => e.key === 'Enter' && sendMessage();
+    document.getElementById('backButton').onclick = showFriendsScreen;
+    
+    loadFriends();
+</script>
     </body>
     </html>
     ''')
