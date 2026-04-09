@@ -388,9 +388,31 @@ async def root():
     input.focus();
 }
             
-            document.getElementById('sendButton').onclick = sendMessage;
-            document.getElementById('messageInput').onkeypress = (e) => e.key === 'Enter' && sendMessage();
-            document.getElementById('backButton').onclick = showFriendsScreen;
+// ========== НОВЫЕ ОБРАБОТЧИКИ (НЕ БЛОКИРУЮТ ВВОД) ==========
+const sendBtn = document.getElementById('sendButton');
+const msgInput = document.getElementById('messageInput');
+const backBtn = document.getElementById('backButton');
+
+if (sendBtn) {
+    sendBtn.onclick = sendMessage;
+}
+
+if (msgInput) {
+    msgInput.onkeypress = (e) => {
+        // Только Enter отправляет сообщение, но НЕ блокирует обычный ввод
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+        // Для всех остальных клавиш — ничего не делаем, буквы печатаются сами
+    };
+}
+
+if (backBtn) {
+    backBtn.onclick = showFriendsScreen;
+}
+
+console.log('✅ Обработчики настроены корректно');
             
             loadFriends();
         </script>
