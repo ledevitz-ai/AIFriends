@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from openai import OpenAI
@@ -9,13 +9,11 @@ load_dotenv()
 
 app = FastAPI()
 
-# Подключаем DeepSeek
 client = OpenAI(
     api_key=os.getenv("DEEPSEEK_API_KEY"),
     base_url="https://api.deepseek.com/v1"
 )
 
-# Данные друзей
 friends_data = [
     {"id": 1, "name": "Дима", "personality": "Саркастичный айтишник", "color": "#4CAF50"},
     {"id": 2, "name": "Лена", "personality": "Эмпатичная психолог", "color": "#E91E63"},
@@ -35,35 +33,21 @@ async def get_friends():
 
 @app.post("/api/chat")
 async def chat_with_friend(request: ChatRequest):
-    friend = None
-    for f in friends_data:
-        if f["id"] == request.friend_id:
-            friend = f
-            break
-    
+    friend = next((f for f in friends_data if f["id"] == request.friend_id), None)
     if not friend:
         return {"friend_id": request.friend_id, "response": "Друг не найден"}
     
-    prompt = f"Ты {friend['name']}, {friend['personality']}. Твой друг написал: '{request.message}'. Ответь коротко, как в WhatsApp."
+    prompt = f"Ты {friend['name']}, {friend['personality']}. Ответь другу: {request.message}. Коротко, как в WhatsApp."
     
     try:
         response = client.chat.completions.create(
             model="deepseek-chat",
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=100,
-            temperature=0.8
+            max_tokens=100
         )
         answer = response.choices[0].message.content
-    except Exception as e:
-        print(f"Ошибка API: {e}")
-        fallback = {
-            1: "Слышь, потом расскажу",
-            2: "Я тебя слышу",
-            3: "Погнали!",
-            4: "Как красиво сказано",
-            5: "Интересно...",
-            6: "ОМГ! 🔥"
-        }
+    except:
+        fallback = {1: "Норм!", 2: "Понял", 3: "Ок", 4: "Красота", 5: "Интересно", 6: "Круто!"}
         answer = fallback.get(request.friend_id, "Привет!")
     
     return {"friend_id": request.friend_id, "response": answer}
@@ -76,30 +60,13 @@ async def root():
     <head>
         <title>ИИ Друзья</title>
         <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-        <meta name="theme-color" content="#075e54">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
         <style>
-            * {
-                margin: 0;
-                padding: 0;
-                box-sizing: border-box;
-            }
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #075e54; height: 100vh; overflow: hidden; }
             
-            body {
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-                background: #075e54;
-                height: 100vh;
-                overflow: hidden;
-            }
+            .app { height: 100vh; position: relative; }
             
-            /* Основной контейнер */
-            .app {
-                height: 100vh;
-                background: #fff;
-                position: relative;
-            }
-            
-            /* Экраны */
             .screen {
                 position: absolute;
                 top: 0;
@@ -110,60 +77,23 @@ async def root():
                 background: #fff;
             }
             
-            .screen.friends-screen {
-                transform: translateX(0);
-                z-index: 1;
-            }
+            .screen.friends-screen { transform: translateX(0); z-index: 1; }
+            .screen.chat-screen { transform: translateX(100%); z-index: 2; }
+            .screen.chat-screen.active { transform: translateX(0); }
+            .screen.friends-screen.hide { transform: translateX(-100%); }
             
-            .screen.chat-screen {
-                transform: translateX(100%);
-                z-index: 2;
-            }
+            .friends-header { background: #075e54; padding: 20px 16px; color: white; height: 60px; }
+            .friends-header h1 { font-size: 20px; font-weight: 500; }
             
-            .screen.chat-screen.active {
-                transform: translateX(0);
-            }
-            
-            .screen.friends-screen.hide {
-                transform: translateX(-100%);
-            }
-            
-            /* Шапка списка друзей */
-            .friends-header {
-                background: #075e54;
-                padding: 20px 16px;
-                color: white;
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                height: 60px;
-            }
-            
-            .friends-header h1 {
-                font-size: 20px;
-                font-weight: 500;
-            }
-            
-            /* Список друзей */
-            .friends-list {
-                overflow-y: auto;
-                height: calc(100% - 60px);
-                background: #fff;
-            }
-            
+            .friends-list { overflow-y: auto; height: calc(100% - 60px); background: #fff; }
             .friend-item {
                 display: flex;
                 align-items: center;
                 padding: 12px 16px;
                 cursor: pointer;
                 border-bottom: 1px solid #f0f0f0;
-                transition: background 0.2s;
             }
-            
-            .friend-item:active {
-                background: #f5f5f5;
-            }
-            
+            .friend-item:active { background: #f5f5f5; }
             .friend-avatar {
                 width: 48px;
                 height: 48px;
@@ -177,23 +107,9 @@ async def root():
                 margin-right: 15px;
                 flex-shrink: 0;
             }
+            .friend-name { font-weight: 600; font-size: 16px; }
+            .friend-personality { font-size: 12px; color: #667781; }
             
-            .friend-info {
-                flex: 1;
-            }
-            
-            .friend-name {
-                font-weight: 600;
-                font-size: 16px;
-                margin-bottom: 4px;
-            }
-            
-            .friend-personality {
-                font-size: 12px;
-                color: #667781;
-            }
-            
-            /* Шапка чата */
             .chat-header {
                 background: #075e54;
                 padding: 10px 16px;
@@ -203,7 +119,6 @@ async def root():
                 height: 60px;
                 color: white;
             }
-            
             .back-button {
                 background: none;
                 border: none;
@@ -212,11 +127,7 @@ async def root():
                 cursor: pointer;
                 width: 40px;
                 height: 40px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
             }
-            
             .chat-avatar {
                 width: 40px;
                 height: 40px;
@@ -228,22 +139,10 @@ async def root():
                 font-weight: bold;
                 color: white;
             }
+            .chat-header-info { flex: 1; }
+            .chat-header-info h3 { font-size: 16px; }
+            .chat-header-info p { font-size: 12px; opacity: 0.9; }
             
-            .chat-header-info {
-                flex: 1;
-            }
-            
-            .chat-header-info h3 {
-                font-size: 16px;
-                font-weight: 500;
-            }
-            
-            .chat-header-info p {
-                font-size: 12px;
-                opacity: 0.9;
-            }
-            
-            /* Область сообщений */
             .messages {
                 flex: 1;
                 overflow-y: auto;
@@ -251,56 +150,25 @@ async def root():
                 background: #efeae2;
                 height: calc(100% - 120px);
             }
-            
-            .message {
-                display: flex;
-                margin-bottom: 8px;
-            }
-            
-            .message.user {
-                justify-content: flex-end;
-            }
-            
-            .message.friend {
-                justify-content: flex-start;
-            }
-            
+            .message { display: flex; margin-bottom: 8px; }
+            .message.user { justify-content: flex-end; }
+            .message.friend { justify-content: flex-start; }
             .bubble {
                 max-width: 70%;
                 padding: 8px 12px;
                 border-radius: 8px;
                 font-size: 14px;
-                line-height: 1.4;
             }
+            .message.user .bubble { background: #d9fdd3; border-top-right-radius: 2px; }
+            .message.friend .bubble { background: white; border-top-left-radius: 2px; }
             
-            .message.user .bubble {
-                background: #d9fdd3;
-                color: #111;
-                border-top-right-radius: 2px;
-            }
-            
-            .message.friend .bubble {
-                background: white;
-                color: #111;
-                border-top-left-radius: 2px;
-            }
-            
-            .bubble-name {
-                font-size: 11px;
-                color: #667781;
-                margin-bottom: 2px;
-            }
-            
-            /* Панель ввода */
             .input-area {
                 background: #f0f2f5;
                 padding: 10px 16px;
                 display: flex;
                 gap: 12px;
-                border-top: 1px solid #e9ecef;
                 height: 60px;
             }
-            
             .input-area input {
                 flex: 1;
                 padding: 10px 15px;
@@ -308,13 +176,7 @@ async def root():
                 border-radius: 25px;
                 outline: none;
                 font-size: 14px;
-                background: white;
             }
-            
-            .input-area input:disabled {
-                background: #f0f2f5;
-            }
-            
             .input-area button {
                 background: #075e54;
                 border: none;
@@ -325,290 +187,207 @@ async def root():
                 font-size: 18px;
                 cursor: pointer;
             }
-            
-            .input-area button:disabled {
-                background: #ccc;
-            }
-            
-            /* Индикатор печати */
             .typing {
                 padding: 10px 20px;
                 color: #667781;
                 font-size: 12px;
                 display: flex;
-                align-items: center;
                 gap: 8px;
                 background: #efeae2;
             }
-            
-            .typing-dots span {
-                display: inline-block;
+            .dot {
                 width: 6px;
                 height: 6px;
                 border-radius: 50%;
                 background: #667781;
-                animation: typing 1.4s infinite;
+                animation: pulse 1.4s infinite;
             }
-            
-            .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
-            .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
-            
-            @keyframes typing {
-                0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
-                30% { transform: translateY(-6px); opacity: 1; }
-            }
-            
-            .chat-container {
-                display: flex;
-                flex-direction: column;
-                height: 100%;
-            }
+            .dot:nth-child(2) { animation-delay: 0.2s; }
+            .dot:nth-child(3) { animation-delay: 0.4s; }
+            @keyframes pulse { 0%, 60%, 100% { opacity: 0.4; } 30% { opacity: 1; } }
         </style>
     </head>
     <body>
         <div class="app">
-            <!-- Экран списка друзей -->
             <div class="screen friends-screen" id="friendsScreen">
-                <div class="friends-header">
-                    <h1>👥 Чаты</h1>
-                </div>
+                <div class="friends-header"><h1>👥 Чаты</h1></div>
                 <div class="friends-list" id="friendsList"></div>
             </div>
             
-            <!-- Экран чата -->
             <div class="screen chat-screen" id="chatScreen">
-                <div class="chat-container">
-                    <div class="chat-header">
-                        <button class="back-button" id="backButton">←</button>
-                        <div class="chat-avatar" id="chatAvatar">?</div>
-                        <div class="chat-header-info">
-                            <h3 id="chatName">Друг</h3>
-                            <p id="chatStatus">онлайн</p>
-                        </div>
+                <div class="chat-header" id="chatHeader">
+                    <button class="back-button" id="backButton">←</button>
+                    <div class="chat-avatar" id="chatAvatar">?</div>
+                    <div class="chat-header-info">
+                        <h3 id="chatName">Друг</h3>
+                        <p id="chatStatus">онлайн</p>
                     </div>
-                    
-                    <div class="messages" id="messages">
-                        <div style="text-align: center; padding: 40px; color: #667781;">
-                            💬<br>Напишите что-нибудь
-                        </div>
-                    </div>
-                    
-                    <div class="typing" id="typing" style="display: none;">
-                        <div class="typing-dots"><span></span><span></span><span></span></div>
-                        <span>печатает...</span>
-                    </div>
-                    
-                    <div class="input-area">
-                        <input type="text" id="messageInput" placeholder="Введите сообщение" disabled>
-                        <button id="sendButton" disabled>➤</button>
-                    </div>
+                </div>
+                
+                <div class="messages" id="messages">
+                    <div style="text-align: center; padding: 40px; color: #667781;">💬<br>Напишите что-нибудь</div>
+                </div>
+                
+                <div class="typing" id="typing" style="display: none;">
+                    <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+                    <span>печатает...</span>
+                </div>
+                
+                <div class="input-area">
+                    <input type="text" id="messageInput" placeholder="Введите сообщение">
+                    <button id="sendButton">➤</button>
                 </div>
             </div>
         </div>
         
         <script>
-    let friends = [];
-    let currentFriendId = null;
-    let isLoading = false;
-    
-    // ========== ФУНКЦИИ ДЛЯ РАБОТЫ С ХРАНИЛИЩЕМ ==========
-    
-    // Сохранить все чаты в localStorage
-    function saveAllChatsToStorage(chats) {
-        try {
-            localStorage.setItem('ai_friends_chats', JSON.stringify(chats));
-            console.log('✅ Чаты сохранены в localStorage');
-        } catch(e) {
-            console.error('Ошибка сохранения:', e);
-        }
-    }
-    
-    // Загрузить все чаты из localStorage
-    function loadAllChatsFromStorage() {
-        try {
-            const saved = localStorage.getItem('ai_friends_chats');
-            if (saved) {
-                return JSON.parse(saved);
+            let friends = [];
+            let currentFriendId = null;
+            let isLoading = false;
+            let chatHistories = {};
+            
+            function showFriendsScreen() {
+                document.getElementById('friendsScreen').classList.remove('hide');
+                document.getElementById('chatScreen').classList.remove('active');
+                document.getElementById('chatScreen').style.transform = 'translateX(100%)';
             }
-        } catch(e) {
-            console.error('Ошибка загрузки:', e);
-        }
-        return {};
-    }
-    
-    // Сохранить историю одного чата
-    function saveChatToStorage(friendId, messages) {
-        const allChats = loadAllChatsFromStorage();
-        allChats[friendId] = messages;
-        saveAllChatsToStorage(allChats);
-    }
-    
-    // Загрузить историю одного чата
-    function loadChatFromStorage(friendId) {
-        const allChats = loadAllChatsFromStorage();
-        return allChats[friendId] || [];
-    }
-    
-    // Очистить всё (если понадобится)
-    function clearAllStorage() {
-        localStorage.removeItem('ai_friends_chats');
-        console.log('🗑️ Все чаты удалены');
-    }
-    
-    // ========== ОСТАЛЬНОЙ КОД БЕЗ ИЗМЕНЕНИЙ ==========
-    
-    async function loadFriends() {
-        const res = await fetch('/api/friends');
-        const data = await res.json();
-        friends = data.friends;
-        const container = document.getElementById('friendsList');
-        container.innerHTML = '';
-        friends.forEach(f => {
-            const div = document.createElement('div');
-            div.className = 'friend-item';
-            div.onclick = () => selectFriend(f.id);
-            div.innerHTML = `
-                <div class="friend-avatar" style="background: ${f.color}">${f.name[0]}</div>
-                <div class="friend-info">
-                    <div class="friend-name">${escapeHtml(f.name)}</div>
-                    <div class="friend-personality">${escapeHtml(f.personality)}</div>
-                </div>
-            `;
-            container.appendChild(div);
-        });
-    }
-    
-    function selectFriend(id) {
-        if (currentFriendId && currentFriendId !== id) {
-            saveCurrentChat();
-        }
-        currentFriendId = id;
-        const friend = friends.find(f => f.id === id);
-        
-        document.getElementById('chatHeader').style.display = 'flex';
-        document.getElementById('chatName').innerText = friend.name;
-        const avatar = document.getElementById('chatAvatar');
-        avatar.innerText = friend.name[0];
-        avatar.style.background = friend.color;
-        
-        document.getElementById('messageInput').disabled = false;
-        document.getElementById('sendButton').disabled = false;
-        
-        // Загружаем сохранённую историю
-        loadChat();
-        
-        showChatScreen();
-        setTimeout(() => {
-            document.getElementById('messageInput').focus();
-        }, 300);
-    }
-    
-    function saveCurrentChat() {
-        if (!currentFriendId) return;
-        const container = document.getElementById('messages');
-        const msgs = [];
-        container.querySelectorAll('.message').forEach(el => {
-            msgs.push({
-                role: el.classList.contains('user') ? 'user' : 'friend',
-                text: el.querySelector('.bubble').innerText
-            });
-        });
-        if (msgs.length) {
-            saveChatToStorage(currentFriendId, msgs);
-        }
-    }
-    
-    function loadChat() {
-        const container = document.getElementById('messages');
-        const savedMessages = loadChatFromStorage(currentFriendId);
-        
-        if (savedMessages && savedMessages.length > 0) {
-            container.innerHTML = '';
-            savedMessages.forEach(msg => {
+            
+            function showChatScreen() {
+                document.getElementById('friendsScreen').classList.add('hide');
+                document.getElementById('chatScreen').classList.add('active');
+                document.getElementById('chatScreen').style.transform = 'translateX(0)';
+            }
+            
+            async function loadFriends() {
+                const res = await fetch('/api/friends');
+                const data = await res.json();
+                friends = data.friends;
+                const container = document.getElementById('friendsList');
+                container.innerHTML = '';
+                friends.forEach(f => {
+                    const div = document.createElement('div');
+                    div.className = 'friend-item';
+                    div.onclick = () => selectFriend(f.id);
+                    div.innerHTML = `
+                        <div class="friend-avatar" style="background: ${f.color}">${f.name[0]}</div>
+                        <div>
+                            <div class="friend-name">${f.name}</div>
+                            <div class="friend-personality">${f.personality}</div>
+                        </div>
+                    `;
+                    container.appendChild(div);
+                });
+            }
+            
+            function selectFriend(id) {
+                if (currentFriendId && currentFriendId !== id) {
+                    saveChat();
+                }
+                currentFriendId = id;
+                const friend = friends.find(f => f.id === id);
+                
+                document.getElementById('chatName').innerText = friend.name;
+                const avatar = document.getElementById('chatAvatar');
+                avatar.innerText = friend.name[0];
+                avatar.style.background = friend.color;
+                
+                document.getElementById('messageInput').disabled = false;
+                document.getElementById('sendButton').disabled = false;
+                
+                loadChat();
+                showChatScreen();
+                setTimeout(() => document.getElementById('messageInput').focus(), 300);
+            }
+            
+            function saveChat() {
+                if (!currentFriendId) return;
+                const container = document.getElementById('messages');
+                const msgs = [];
+                container.querySelectorAll('.message').forEach(el => {
+                    msgs.push({
+                        role: el.classList.contains('user') ? 'user' : 'friend',
+                        text: el.querySelector('.bubble').innerText
+                    });
+                });
+                if (msgs.length) chatHistories[currentFriendId] = msgs;
+            }
+            
+            function loadChat() {
+                const container = document.getElementById('messages');
+                const history = chatHistories[currentFriendId];
+                if (history && history.length) {
+                    container.innerHTML = '';
+                    history.forEach(msg => {
+                        const div = document.createElement('div');
+                        div.className = `message ${msg.role}`;
+                        div.innerHTML = `<div class="bubble">${escapeHtml(msg.text)}</div>`;
+                        container.appendChild(div);
+                    });
+                } else {
+                    container.innerHTML = '<div style="text-align: center; padding: 40px; color: #667781;">💬<br>Напишите что-нибудь</div>';
+                }
+                container.scrollTop = container.scrollHeight;
+            }
+            
+            function addMessage(role, text, friendId = null) {
+                const container = document.getElementById('messages');
+                const empty = container.querySelector('div[style*="text-align: center"]');
+                if (empty) empty.remove();
+                
                 const div = document.createElement('div');
-                div.className = `message ${msg.role}`;
-                div.innerHTML = `<div class="bubble">${escapeHtml(msg.text)}</div>`;
+                div.className = `message ${role}`;
+                if (role === 'friend' && friendId) {
+                    const friend = friends.find(f => f.id === friendId);
+                    div.innerHTML = `<div class="bubble"><div style="font-size:11px;color:#667781">${friend.name}</div>${escapeHtml(text)}</div>`;
+                } else {
+                    div.innerHTML = `<div class="bubble">${escapeHtml(text)}</div>`;
+                }
                 container.appendChild(div);
-            });
-        } else {
-            container.innerHTML = '<div style="text-align: center; padding: 40px; color: #667781;">💬<br>Напишите что-нибудь</div>';
-        }
-        container.scrollTop = container.scrollHeight;
-    }
-    
-    function addMessage(role, text, friendId = null) {
-        const container = document.getElementById('messages');
-        const empty = container.querySelector('div[style*="text-align: center"]');
-        if (empty) empty.remove();
-        
-        const div = document.createElement('div');
-        div.className = `message ${role}`;
-        if (role === 'friend' && friendId) {
-            const friend = friends.find(f => f.id === friendId);
-            div.innerHTML = `<div class="bubble"><div style="font-size:11px;color:#667781">${friend.name}</div>${escapeHtml(text)}</div>`;
-        } else {
-            div.innerHTML = `<div class="bubble">${escapeHtml(text)}</div>`;
-        }
-        container.appendChild(div);
-        container.scrollTop = container.scrollHeight;
-        
-        // Сохраняем после каждого сообщения
-        saveCurrentChat();
-    }
-    
-    function escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
-    
-    async function sendMessage() {
-        const input = document.getElementById('messageInput');
-        const msg = input.value.trim();
-        if (!msg || !currentFriendId || isLoading) return;
-        
-        addMessage('user', msg);
-        input.value = '';
-        isLoading = true;
-        document.getElementById('sendButton').disabled = true;
-        document.getElementById('typing').style.display = 'flex';
-        
-        try {
-            const res = await fetch('/api/chat', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({message: msg, friend_id: currentFriendId})
-            });
-            const data = await res.json();
-            addMessage('friend', data.response, data.friend_id);
-        } catch(e) {
-            console.error(e);
-            addMessage('friend', 'Ошибка! Попробуй еще раз', currentFriendId);
-        }
-        isLoading = false;
-        document.getElementById('sendButton').disabled = false;
-        document.getElementById('typing').style.display = 'none';
-        input.focus();
-    }
-    
-    function showFriendsScreen() {
-        document.getElementById('friendsScreen').classList.remove('hide');
-        document.getElementById('chatScreen').classList.remove('active');
-        document.getElementById('chatScreen').style.transform = 'translateX(100%)';
-    }
-    
-    function showChatScreen() {
-        document.getElementById('friendsScreen').classList.add('hide');
-        document.getElementById('chatScreen').classList.add('active');
-        document.getElementById('chatScreen').style.transform = 'translateX(0)';
-    }
-    
-    document.getElementById('sendButton').onclick = sendMessage;
-    document.getElementById('messageInput').onkeypress = (e) => e.key === 'Enter' && sendMessage();
-    document.getElementById('backButton').onclick = showFriendsScreen;
-    
-    loadFriends();
-</script>
+                container.scrollTop = container.scrollHeight;
+            }
+            
+            function escapeHtml(text) {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            }
+            
+            async function sendMessage() {
+                const input = document.getElementById('messageInput');
+                const msg = input.value.trim();
+                if (!msg || !currentFriendId || isLoading) return;
+                
+                addMessage('user', msg);
+                input.value = '';
+                isLoading = true;
+                document.getElementById('sendButton').disabled = true;
+                document.getElementById('typing').style.display = 'flex';
+                
+                try {
+                    const res = await fetch('/api/chat', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({message: msg, friend_id: currentFriendId})
+                    });
+                    const data = await res.json();
+                    addMessage('friend', data.response, data.friend_id);
+                    saveChat();
+                } catch(e) {
+                    console.error(e);
+                    addMessage('friend', 'Ошибка! Попробуй еще раз', currentFriendId);
+                }
+                isLoading = false;
+                document.getElementById('sendButton').disabled = false;
+                document.getElementById('typing').style.display = 'none';
+                input.focus();
+            }
+            
+            document.getElementById('sendButton').onclick = sendMessage;
+            document.getElementById('messageInput').onkeypress = (e) => e.key === 'Enter' && sendMessage();
+            document.getElementById('backButton').onclick = showFriendsScreen;
+            
+            loadFriends();
+        </script>
     </body>
     </html>
     ''')
