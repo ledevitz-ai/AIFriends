@@ -1,7 +1,6 @@
-from dotenv import load_dotenv
-load_dotenv()# app.py - WhatsApp стиль с 6 друзьями
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from openai import OpenAI
 import os
@@ -17,6 +16,7 @@ client = OpenAI(
     base_url="https://api.deepseek.com/v1"
 )
 
+# Данные друзей
 friends_data = [
     {"id": 1, "name": "Дима", "personality": "Саркастичный айтишник", "color": "#4CAF50"},
     {"id": 2, "name": "Лена", "personality": "Эмпатичная психолог", "color": "#E91E63"},
@@ -36,15 +36,17 @@ async def get_friends():
 
 @app.post("/api/chat")
 async def chat_with_friend(request: ChatRequest):
-    friend = next((f for f in friends_data if f["id"] == request.friend_id), None)
+    friend = None
+    for f in friends_data:
+        if f["id"] == request.friend_id:
+            friend = f
+            break
+    
     if not friend:
         return {"friend_id": request.friend_id, "response": "Друг не найден"}
     
-    # Промпт с характером друга
-    prompt = f"""Ты {friend['name']}, {friend['personality']}. 
-Твой друг написал тебе: "{request.message}"
-Ответь коротко, естественно, как в переписке в WhatsApp. Не говори что ты ИИ. Ответ в одну-две фразы."""
-
+    prompt = f"Ты {friend['name']}, {friend['personality']}. Твой друг написал: '{request.message}'. Ответь коротко, как в WhatsApp."
+    
     try:
         response = client.chat.completions.create(
             model="deepseek-chat",
@@ -55,7 +57,6 @@ async def chat_with_friend(request: ChatRequest):
         answer = response.choices[0].message.content
     except Exception as e:
         print(f"Ошибка API: {e}")
-        # Запасной вариант при ошибке
         fallback = {
             1: "Слышь, потом расскажу",
             2: "Я тебя слышу",
@@ -69,17 +70,6 @@ async def chat_with_friend(request: ChatRequest):
     return {"friend_id": request.friend_id, "response": answer}
 
 @app.get("/")
-from fastapi.staticfiles import StaticFiles
-
-# В самом начале, после создания app
-app.mount("/static", StaticFiles(directory="static"), name="static")
-
-@app.get("/manifest.json")
-async def manifest():
-    from fastapi.responses import JSONResponse
-    import json
-    with open("manifest.json", "r", encoding="utf-8") as f:
-        return JSONResponse(content=json.load(f))
 async def root():
     return HTMLResponse('''
     <!DOCTYPE html>
@@ -87,7 +77,8 @@ async def root():
     <head>
         <title>ИИ Друзья</title>
         <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+        <meta name="theme-color" content="#075e54">
         <style>
             * { margin: 0; padding: 0; box-sizing: border-box; }
             body { font-family: Arial, sans-serif; background: #e5ddd5; height: 100vh; }
@@ -98,8 +89,8 @@ async def root():
             .friend { display: flex; align-items: center; padding: 12px 16px; cursor: pointer; border-bottom: 1px solid #eee; }
             .friend:hover { background: #f5f5f5; }
             .friend.active { background: #ebebeb; }
-            .avatar { width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: bold; color: white; margin-right: 15px; flex-shrink: 0; }
-            .friend-name { font-weight: bold; margin-bottom: 4px; }
+            .avatar { width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: bold; color: white; margin-right: 15px; }
+            .friend-name { font-weight: bold; }
             .friend-personality { font-size: 12px; color: #667781; }
             .chat { flex: 1; display: flex; flex-direction: column; background: #efeae2; }
             .chat-header { background: #f0f2f5; padding: 10px 16px; display: flex; align-items: center; gap: 15px; border-bottom: 1px solid #ddd; }
@@ -111,12 +102,9 @@ async def root():
             .bubble { max-width: 60%; padding: 8px 12px; border-radius: 8px; font-size: 14px; }
             .message.user .bubble { background: #d9fdd3; }
             .message.friend .bubble { background: white; }
-            .bubble-name { font-size: 11px; color: #667781; margin-bottom: 2px; }
             .input-area { background: #f0f2f5; padding: 10px 16px; display: flex; gap: 10px; }
-            .input-area input { flex: 1; padding: 10px 15px; border: none; border-radius: 25px; outline: none; font-size: 14px; background: white; }
-            .input-area input:disabled { background: #f0f2f5; }
+            .input-area input { flex: 1; padding: 10px 15px; border: none; border-radius: 25px; outline: none; }
             .input-area button { background: #075e54; border: none; width: 40px; height: 40px; border-radius: 50%; color: white; font-size: 18px; cursor: pointer; }
-            .input-area button:disabled { background: #ccc; cursor: not-allowed; }
             .empty-chat { text-align: center; padding: 60px 20px; color: #667781; }
             .typing { padding: 10px 20px; color: #667781; font-size: 12px; display: flex; gap: 8px; }
             .dot { width: 6px; height: 6px; border-radius: 50%; background: #667781; animation: pulse 1.4s infinite; }
@@ -124,11 +112,6 @@ async def root():
             .dot:nth-child(3) { animation-delay: 0.4s; }
             @keyframes pulse { 0%, 60%, 100% { opacity: 0.4; } 30% { opacity: 1; } }
         </style>
-        <link rel="manifest" href="/manifest.json">
-<link rel="apple-touch-icon" href="/static/icon-192.png">
-<meta name="theme-color" content="#075e54">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     </head>
     <body>
         <div class="app">
@@ -137,14 +120,14 @@ async def root():
                 <div class="friends-list" id="friendsList"></div>
             </div>
             <div class="chat">
-                <div class="chat-header" id="chatHeader" style="display: none;">
+                <div class="chat-header" id="chatHeader" style="display:none">
                     <div class="chat-avatar" id="chatAvatar">?</div>
                     <div><h3 id="chatName"></h3></div>
                 </div>
                 <div class="messages" id="messages">
                     <div class="empty-chat">💬<br>Выберите друга</div>
                 </div>
-                <div class="typing" id="typing" style="display: none;">
+                <div class="typing" id="typing" style="display:none">
                     <div class="dot"></div><div class="dot"></div><div class="dot"></div>
                     <span>печатает...</span>
                 </div>
@@ -246,7 +229,7 @@ async def root():
                 div.className = `message ${role}`;
                 if (role === 'friend' && friendId) {
                     const friend = friends.find(f => f.id === friendId);
-                    div.innerHTML = `<div class="bubble"><div class="bubble-name">${friend.name}</div>${text}</div>`;
+                    div.innerHTML = `<div class="bubble"><div style="font-size:11px;color:#667781">${friend.name}</div>${text}</div>`;
                 } else {
                     div.innerHTML = `<div class="bubble">${text}</div>`;
                 }
