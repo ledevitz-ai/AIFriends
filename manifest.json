@@ -1,0 +1,22 @@
+{
+  "name": "ИИ Друзья",
+  "short_name": "Друзья",
+  "description": "Чат с ИИ-друзьями",
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#075e54",
+  "background_color": "#efeae2",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/static/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/static/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

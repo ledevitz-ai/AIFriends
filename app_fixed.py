@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # app_fixed.py - полностью рабочий чат с 6 друзьями
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
@@ -544,3 +545,6 @@ async def root():
     </body>
     </html>
     ''')
+=======
+
+>>>>>>> f26a77e3ee14c5b0306884e7b6997135d5d90fee

@@ -69,6 +69,17 @@ async def chat_with_friend(request: ChatRequest):
     return {"friend_id": request.friend_id, "response": answer}
 
 @app.get("/")
+from fastapi.staticfiles import StaticFiles
+
+# В самом начале, после создания app
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+@app.get("/manifest.json")
+async def manifest():
+    from fastapi.responses import JSONResponse
+    import json
+    with open("manifest.json", "r", encoding="utf-8") as f:
+        return JSONResponse(content=json.load(f))
 async def root():
     return HTMLResponse('''
     <!DOCTYPE html>
@@ -113,6 +124,11 @@ async def root():
             .dot:nth-child(3) { animation-delay: 0.4s; }
             @keyframes pulse { 0%, 60%, 100% { opacity: 0.4; } 30% { opacity: 1; } }
         </style>
+        <link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/static/icon-192.png">
+<meta name="theme-color" content="#075e54">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     </head>
     <body>
         <div class="app">
