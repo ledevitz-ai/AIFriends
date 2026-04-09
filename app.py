@@ -353,34 +353,40 @@ async def root():
             }
             
             async function sendMessage() {
-                const input = document.getElementById('messageInput');
-                const msg = input.value.trim();
-                if (!msg || !currentFriendId || isLoading) return;
-                
-                addMessage('user', msg);
-                input.value = '';
-                isLoading = true;
-                document.getElementById('sendButton').disabled = true;
-                document.getElementById('typing').style.display = 'flex';
-                
-                try {
-                    const res = await fetch('/api/chat', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({message: msg, friend_id: currentFriendId})
-                    });
-                    const data = await res.json();
-                    addMessage('friend', data.response, data.friend_id);
-                    saveChat();
-                } catch(e) {
-                    console.error(e);
-                    addMessage('friend', 'Ошибка! Попробуй еще раз', currentFriendId);
-                }
-                isLoading = false;
-                document.getElementById('sendButton').disabled = false;
-                document.getElementById('typing').style.display = 'none';
-                input.focus();
-            }
+    const input = document.getElementById('messageInput');
+    if (!input) return;
+    
+    const msg = input.value.trim();
+    if (!msg || !currentFriendId || isLoading) return;
+    
+    // Сохраняем сообщение пользователя
+    addMessage('user', msg);
+    input.value = '';
+    isLoading = true;
+    
+    const sendBtn = document.getElementById('sendButton');
+    const typing = document.getElementById('typing');
+    if (sendBtn) sendBtn.disabled = true;
+    if (typing) typing.style.display = 'flex';
+    
+    try {
+        const res = await fetch('/api/chat', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({message: msg, friend_id: currentFriendId})
+        });
+        const data = await res.json();
+        addMessage('friend', data.response, data.friend_id);
+        saveChat();
+    } catch(e) {
+        console.error(e);
+        addMessage('friend', 'Ошибка! Попробуй еще раз', currentFriendId);
+    }
+    isLoading = false;
+    if (sendBtn) sendBtn.disabled = false;
+    if (typing) typing.style.display = 'none';
+    input.focus();
+}
             
             document.getElementById('sendButton').onclick = sendMessage;
             document.getElementById('messageInput').onkeypress = (e) => e.key === 'Enter' && sendMessage();
